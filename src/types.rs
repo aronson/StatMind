@@ -1,4 +1,4 @@
-use std::{mem};
+use std::mem;
 #[derive(Debug)]
 #[repr(i32)]
 pub enum MapType {
@@ -118,9 +118,9 @@ pub struct LuigiMachineHacking {
 }
 impl From<&Vec<u8>> for LuigiMachineHacking {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const
-        [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }
 
@@ -132,8 +132,9 @@ pub struct LuigiProp {
 }
 impl From<&Vec<u8>> for LuigiProp {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }
 
@@ -146,8 +147,9 @@ pub struct LuigiItem {
 }
 impl From<&Vec<u8>> for LuigiItem {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }
 
@@ -169,8 +171,9 @@ pub struct LuigiEntity {
 }
 impl From<&Vec<u8>> for LuigiEntity {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }
 
@@ -187,8 +190,9 @@ pub struct LuigiTile {
 }
 impl From<&Vec<u8>> for LuigiTile {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }
 
@@ -209,7 +213,8 @@ pub struct LuigiAi {
 }
 impl From<&Vec<u8>> for LuigiAi {
     fn from(slice: &Vec<u8>) -> Self {
-        let p: *const [u8; mem::size_of::<Self>()] = slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
-        unsafe { mem::transmute(*p)}
+        let p: *const [u8; mem::size_of::<Self>()] =
+            slice.as_ptr() as *const [u8; mem::size_of::<Self>()];
+        unsafe { mem::transmute(*p) }
     }
 }

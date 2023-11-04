@@ -1,21 +1,22 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
 mod types;
 
+use crate::types::{LuigiAi, MapType};
+use anyhow::{anyhow, Error};
+use discord_rich_presence::activity::Activity;
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use env_logger::Env;
+use read_process_memory::copy_address;
+use read_process_memory::{Pid, ProcessHandle};
 #[cfg(target_os = "macos")]
 use security_framework::authorization::{Authorization, AuthorizationItemSetBuilder, Flags};
-use sysinfo::{PidExt, ProcessExt, System, SystemExt};
-use read_process_memory::{Pid, ProcessHandle};
-use std::{mem, thread, time};
 use std::time::{SystemTime, UNIX_EPOCH};
-use read_process_memory::copy_address;
-use anyhow::{anyhow, Error};
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
-use discord_rich_presence::activity::Activity;
-use env_logger::Env;
-use crate::types::{LuigiAi, MapType};
+use std::{mem, thread, time};
+use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 
-fn main() -> anyhow::Result<()>{
+fn main() -> anyhow::Result<()> {
     // Init logger
     let env = Env::default()
         .filter_or("MY_LOG_LEVEL", "info")
@@ -31,13 +32,21 @@ fn main() -> anyhow::Result<()>{
     sys.refresh_processes();
 
     // Find the process
-    let native_process = sys.processes().iter()
-        .find(|(_, proc)| proc.name().to_lowercase().contains("cogmind.exe") &&
-            proc.cmd().contains(&"-luigiAi".to_owned()))
+    let native_process = sys
+        .processes()
+        .iter()
+        .find(|(_, proc)| {
+            proc.name().to_lowercase().contains("cogmind.exe")
+                && proc.cmd().contains(&"-luigiAi".to_owned())
+        })
         .map(|(_, proc)| proc);
-    let wine_process = sys.processes().iter()
-        .find(|(_, proc)| proc.name().to_lowercase().contains("wine") &&
-            proc.cmd().contains(&"-luigiAi".to_owned()))
+    let wine_process = sys
+        .processes()
+        .iter()
+        .find(|(_, proc)| {
+            proc.name().to_lowercase().contains("wine")
+                && proc.cmd().contains(&"-luigiAi".to_owned())
+        })
         .map(|(_, proc)| proc);
     let process = native_process.or(wine_process);
 
@@ -57,7 +66,7 @@ fn main() -> anyhow::Result<()>{
                 Ok(_) => {
                     info!("State updated! {}", map_string);
                     thread::sleep(time::Duration::from_secs(60));
-                },
+                }
                 Err(e) => {
                     error!("Error updating state:\n{}", e);
                     thread::sleep(time::Duration::from_secs(5));
@@ -71,25 +80,36 @@ fn main() -> anyhow::Result<()>{
 }
 
 fn init_discord_client_and_payload() -> Result<(DiscordIpcClient, Activity<'static>), Error> {
-    let mut client = DiscordIpcClient::new("914720093701832724").
-        map_err(|e|{
-            error!("{}", e);
-            anyhow!("Failed to init client!")
-        })?;
+    let mut client = DiscordIpcClient::new("914720093701832724").map_err(|e| {
+        error!("{}", e);
+        anyhow!("Failed to init client!")
+    })?;
     client.connect().map_err(|e| {
         error!("{}", e);
         anyhow!("Failed to connect to RPC endpoint!")
     })?;
-    let assets = activity::Assets::new().large_image("cogmind_logo").
-        small_image("go_flight").large_text("Cogmind b13 X1").small_text("Flight enjoyer");
+    let assets = activity::Assets::new()
+        .large_image("cogmind_logo")
+        .small_image("go_flight")
+        .large_text("Cogmind b13 X1")
+        .small_text("Flight enjoyer");
     let mut buttons = Vec::new();
     let start = SystemTime::now();
     let start_time = start.duration_since(UNIX_EPOCH)?;
     let timestamp = activity::Timestamps::new().start(start_time.as_secs() as i64);
-    buttons.push(activity::Button::new("Visit Site", "https://gridsagegames.com/cogmind"));
-    buttons.push(activity::Button::new("Buy Game", "https://www.gridsagegames.com/cogmind/buy.html"));
-    let payload = Activity::new().assets(assets).details("Playing b13 X1").
-        buttons(buttons).timestamps(timestamp);
+    buttons.push(activity::Button::new(
+        "Visit Site",
+        "https://gridsagegames.com/cogmind",
+    ));
+    buttons.push(activity::Button::new(
+        "Buy Game",
+        "https://www.gridsagegames.com/cogmind/buy.html",
+    ));
+    let payload = Activity::new()
+        .assets(assets)
+        .details("Playing b13 X1")
+        .buttons(buttons)
+        .timestamps(timestamp);
     Ok((client, payload))
 }
 
@@ -165,19 +185,21 @@ fn get_base_address(handle: &ProcessHandle) -> Result<usize, Error> {
 }
 
 fn get_luigi_map(handle: &ProcessHandle) -> Result<String, Error> {
-    let bytes = copy_address(get_base_address(handle)?,
-                             mem::size_of::<LuigiAi>(), handle)?;
+    let bytes = copy_address(get_base_address(handle)?, mem::size_of::<LuigiAi>(), handle)?;
     let val: LuigiAi = LuigiAi::from(&bytes);
-    let map_type = MapType::try_from(val.location_map).
-        map_err(|_e|anyhow!("Failed to convert map type!"))?;
+    let map_type =
+        MapType::try_from(val.location_map).map_err(|_e| anyhow!("Failed to convert map type!"))?;
     Ok(get_presence(val.location_depth, map_type))
 }
 
 #[cfg(target_os = "macos")]
 fn acquire_taskport_right() -> security_framework::base::Result<Authorization> {
-    let rights = AuthorizationItemSetBuilder::new().
-        add_right("system.privilege.taskport")?.build();
-    Authorization::new(Some(rights), None,
-                       Flags::EXTEND_RIGHTS | Flags::INTERACTION_ALLOWED | Flags::PREAUTHORIZE)
+    let rights = AuthorizationItemSetBuilder::new()
+        .add_right("system.privilege.taskport")?
+        .build();
+    Authorization::new(
+        Some(rights),
+        None,
+        Flags::EXTEND_RIGHTS | Flags::INTERACTION_ALLOWED | Flags::PREAUTHORIZE,
+    )
 }
-
