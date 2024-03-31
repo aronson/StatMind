@@ -6,10 +6,14 @@ edition = "2021"
 [dependencies]
 read-process-memory = "0.1.6"
 sysinfo = "0.29.10"
-anyhow = "1.0.75"
+anyhow = { version = "1.0.75", features = [] }
 discord-rich-presence = "0.2.3"
 log = "0.4.20"
-env_logger = "0.10.0"
+env_logger = "0.11.3"
+
+[build-dependencies]
+anyhow = "*"
+unicode-ident = "*"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "2.9.2"

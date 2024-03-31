@@ -1,18 +1,19 @@
 #[macro_use]
 extern crate log;
 
+mod discord;
+mod generated;
 mod types;
 
+use crate::discord::PresenceProvider;
 use crate::types::{LuigiAi, MapType};
 use anyhow::{anyhow, Error};
-use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use discord_rich_presence::DiscordIpc;
 use env_logger::Env;
 use read_process_memory::copy_address;
 use read_process_memory::{Pid, ProcessHandle};
 #[cfg(target_os = "macos")]
 use security_framework::authorization::{Authorization, AuthorizationItemSetBuilder, Flags};
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{mem, thread, time};
 use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 
@@ -56,12 +57,14 @@ fn main() -> anyhow::Result<()> {
         let pid = process.pid().as_u32() as Pid;
         let handle: ProcessHandle = (pid).try_into()?;
 
-        let (mut client, payload) = init_discord_client_and_payload()?;
+        let mut presence = PresenceProvider::try_init()?;
 
         loop {
             debug!("Reading Cogmind process memory...");
             let map_string = get_luigi_map(&handle)?;
-            let result = client.set_activity(payload.clone().state(&map_string));
+            let result = presence
+                .client
+                .set_activity(presence.activity.clone().state(&map_string));
             match result {
                 Ok(_) => {
                     info!("State updated! {}", map_string);
@@ -77,40 +80,6 @@ fn main() -> anyhow::Result<()> {
         error!("No process found...");
     }
     Ok(())
-}
-
-fn init_discord_client_and_payload() -> Result<(DiscordIpcClient, Activity<'static>), Error> {
-    let mut client = DiscordIpcClient::new("914720093701832724").map_err(|e| {
-        error!("{}", e);
-        anyhow!("Failed to init client!")
-    })?;
-    client.connect().map_err(|e| {
-        error!("{}", e);
-        anyhow!("Failed to connect to RPC endpoint!")
-    })?;
-    let assets = activity::Assets::new()
-        .large_image("cogmind_logo")
-        .small_image("go_flight")
-        .large_text("Cogmind b13 X1")
-        .small_text("Flight enjoyer");
-    let mut buttons = Vec::new();
-    let start = SystemTime::now();
-    let start_time = start.duration_since(UNIX_EPOCH)?;
-    let timestamp = activity::Timestamps::new().start(start_time.as_secs() as i64);
-    buttons.push(activity::Button::new(
-        "Visit Site",
-        "https://gridsagegames.com/cogmind",
-    ));
-    buttons.push(activity::Button::new(
-        "Buy Game",
-        "https://www.gridsagegames.com/cogmind/buy.html",
-    ));
-    let payload = Activity::new()
-        .assets(assets)
-        .details("Playing b13 X1")
-        .buttons(buttons)
-        .timestamps(timestamp);
-    Ok((client, payload))
 }
 
 fn get_presence(depth: i32, map_type: MapType) -> String {
@@ -166,22 +135,38 @@ fn get_presence(depth: i32, map_type: MapType) -> String {
     format!("Current map: {}/{}", depth, map)
 }
 
-fn get_base_address(handle: &ProcessHandle) -> Result<usize, Error> {
-    let first_check_address = 0xC6465C;
-    let second_check_address = 0xC66724;
-    let first_bytes = copy_address(first_check_address, mem::size_of::<u32>(), handle)?;
-    let first_val = i32::from_le_bytes(first_bytes[0..4].try_into().unwrap());
-    if first_val == 0x64ADFA4C {
-        Ok(first_check_address)
-    } else {
-        let second_bytes = copy_address(second_check_address, mem::size_of::<u32>(), handle)?;
-        let second_val = i32::from_le_bytes(second_bytes[0..4].try_into().unwrap());
-        if second_val == 0x64ADFA4C {
-            Ok(second_check_address)
-        } else {
-            Err(anyhow!("Could not find base address"))
+fn get_base_address(handle: &ProcessHandle) -> anyhow::Result<usize, Error> {
+    let check_value = 0x64AD_FA4C;
+    let start_address = 0xC0_0000;
+    let end_address = 0xFFFF_FFFF; // Assuming a 32-bit address space for simplicity
+
+    // Iterate over each possible address starting from 0x40000
+    for address in (start_address..=end_address).step_by(mem::size_of::<u32>()) {
+        // Attempt to copy 4 bytes (size of u32) from the current address
+        match copy_address(address, mem::size_of::<u32>(), handle) {
+            Ok(bytes) if bytes.len() == mem::size_of::<u32>() => {
+                // Convert the bytes to an i32 using little-endian byte order
+                let val = i32::from_le_bytes(bytes.try_into().unwrap());
+
+                // Check if the value matches the check_value
+                if val == check_value {
+                    // If it matches, return the current address
+                    return Ok(address);
+                }
+            }
+            Ok(_) => {
+                // If we did not get exactly 4 bytes, continue to the next address
+                continue;
+            }
+            Err(e) => {
+                eprintln!("Error reading from address 0x{:X}: {}", address, e);
+                continue;
+            }
         }
     }
+
+    // If we reach this point, it means we did not find the check_value at any address
+    Err(anyhow!("Could not find base address"))
 }
 
 fn get_luigi_map(handle: &ProcessHandle) -> Result<String, Error> {
